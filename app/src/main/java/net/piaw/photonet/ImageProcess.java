@@ -17,6 +17,7 @@ import com.drew.metadata.exif.GpsDirectory;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Date;
 import java.util.List;
 
 import static com.drew.imaging.ImageMetadataReader.readMetadata;
@@ -72,7 +73,13 @@ public class ImageProcess {
             legal = false;
             return;
         }
-        dateStr = directory.getDate(ExifSubIFDDirectory.TAG_DATETIME_ORIGINAL).toString();
+
+        Date date = directory.getDate(ExifSubIFDDirectory.TAG_DATETIME_ORIGINAL);
+        if (date == null) {
+            dateStr = " ";
+        } else {
+            dateStr = date.toString();
+        }
     }
 
     public void setGPSInfo() throws IOException {
@@ -92,7 +99,8 @@ public class ImageProcess {
     public void setAddr() throws IOException {
         Geocoder geocoder = new Geocoder(context);
         addr = geocoder.getFromLocation(gps.getLatitude(),gps.getLongitude(), 1).get(0);
-        addrStr = addr.getAddressLine(0) + addr.getAddressLine(1) + addr.getAddressLine(2);
+        addrStr = addr.getAddressLine(0) + " " + addr.getAddressLine(1) +
+                " " + addr.getAddressLine(2);
     }
 
     private void printImageTags()

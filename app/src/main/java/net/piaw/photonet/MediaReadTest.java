@@ -9,6 +9,7 @@ import android.support.annotation.NonNull;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
@@ -34,7 +35,8 @@ public class MediaReadTest {
 
     public static Context context = null;
 
-    public static ArrayList<ImageInfo> imageInfoList = new ArrayList<ImageInfo>();
+    public static ImageInfoList imageInfoList = new ImageInfoList();
+    public static int numImage = 0;
     /**
      * Matches code in MediaProvider.computeBucketValues. Should be a common
      * function.
@@ -43,9 +45,7 @@ public class MediaReadTest {
         return String.valueOf(path.toLowerCase().hashCode());
     }
 
-
     public static List<String> getCameraImages() {
-
         final String[] projection = { MediaStore.Images.Media.DATA };
         String[] columns = new String[] {
                 MediaStore.Images.ImageColumns._ID,
@@ -76,7 +76,7 @@ public class MediaReadTest {
 
     public static Date date = new Date(0);
 
-    public static void scanImageInfoList() throws IOException {
+    public static void scanImageInfoList() throws IOException, InterruptedException {
         for (String file_name : result) {
             File file = new File(file_name);
             ImageProcess imageP = null;
@@ -84,19 +84,56 @@ public class MediaReadTest {
             if (date_t.compareTo(date) > 0) {
                 imageP = new ImageProcess(file.getAbsolutePath(), context);
                 if (imageP.isLegal()) {
-                        ImageInfo imageInfo = imageP.getImageInfo();
-                        imageInfoList.add(imageInfo);
+                    ImageInfo imageInfo = imageP.getImageInfo();
+                    imageInfoList.add_one_image_info(imageInfo);
+                    if (numImage != 0 && imageInfoList.infoList.size() >= numImage) {
+                        break;
+                    }
                 }
             }
-            if (imageInfoList.size() >= 1)
-                break;
         }
+
+
     }
 
-    public static ArrayList<ImageInfo>  getCameraImageMetadata(Context context_t) throws IOException {
+    public static ArrayList<ImageInfo>  getCameraImageMetadata(Context context_t, int num) {
+        numImage = num;
         context = context_t;
-        getCameraImages();
-        scanImageInfoList();
-        return imageInfoList;
+        String filename = "image_info_list.txt";
+
+        File infoFile = new File(context.getFilesDir()+filename);
+        ArrayList<Thread> threads = imageInfoList.start_processing();
+        if (infoFile.exists()) {
+            ImageDirProcess.readImageInfoList(infoFile, imageInfoList);
+        } else {
+            try {
+                infoFile.createNewFile();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        try {
+            getCameraImages();
+            scanImageInfoList();
+        } catch (IOException e) {
+                e.printStackTrace();
+        } catch (InterruptedException e) {
+                e.printStackTrace();
+        }
+
+        imageInfoList.set_image_info_end_marker();
+
+        try {
+            for (Thread t : threads) {
+                t.join();
+            }
+            ImageDirProcess.writeImageInfoList(imageInfoList.infoList, infoFile);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return imageInfoList.infoList;
     }
 }

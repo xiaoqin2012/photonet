@@ -1,18 +1,30 @@
 package net.piaw.photonet;
 
 import android.content.Context;
+import android.content.DialogInterface;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.drawable.Icon;
 import android.os.Environment;
 import android.support.v4.app.FragmentActivity;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
+import android.widget.Button;
+import android.widget.TextView;
 
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.GooglePlayServicesUtil;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
+import com.google.android.gms.maps.Projection;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
+import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.LatLngBounds;
+import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 
 import java.io.File;
@@ -21,45 +33,119 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
-public class MapsActivity extends FragmentActivity implements OnMapReadyCallback {
+public class MapsActivity extends FragmentActivity {
 
     private GoogleMap mMap;
     String dcim = Environment.getExternalStoragePublicDirectory(
-    Environment.DIRECTORY_DCIM).getAbsolutePath();
+            Environment.DIRECTORY_DCIM).getAbsolutePath();
     ArrayList<ImageInfo> infoList = null;
+
+    float mCurrentZoom;
+    ArrayList<Marker> mMarkers;
+    ArrayList<Marker> mClusterMarkers;
+    boolean mIsClustered = false;
+    boolean mMapNeedsSetup = true;
+    int numMarkers = 200 ;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
-        // Obtain the SupportMapFragment and get notified when the map is ready to be used.
-        SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
-                .findFragmentById(R.id.map);
-        mapFragment.getMapAsync(this);
+
+        // initialize ui
+        initializeUI();
+
+        // initialize marker list
+        mMarkers = new ArrayList<Marker>();
+        mClusterMarkers = new ArrayList<Marker>();
+
     }
 
-
-    /**
-     * Manipulates the map once available.
-     * This callback is triggered when the map is ready to be used.
-     * This is where we can add markers or lines, add listeners or move the camera. In this case,
-     * we just add a marker near Sydney, Australia.
-     * If Google Play services is not installed on the device, the user will be prompted to install
-     * it inside the SupportMapFragment. This method will only be triggered once the user has
-     * installed Google Play services and returned to the app.
-     */
     @Override
-    public void onMapReady(GoogleMap googleMap) {
-        ImageDirProcess dirProcess = null;
-        mMap = googleMap;
-        Thread t1 = new Thread(new Runnable(){
-            public void run() {
-                //scanDir();
-                try {
-                    infoList = MediaReadTest.getCameraImageMetadata(getApplicationContext());
-                } catch (IOException e) {
-                    e.printStackTrace();
+    protected void onResume() {
+        super.onResume();
+
+        // check google play services
+        int isAvailable = GooglePlayServicesUtil
+                .isGooglePlayServicesAvailable(this);
+        if (isAvailable != ConnectionResult.SUCCESS) {
+            GooglePlayServicesUtil.getErrorDialog(isAvailable, this, 1).show();
+        } else {
+            setupMap();
+        }
+    }
+
+    private void initializeUI() {
+        // get ui items
+        Button create = (Button) findViewById(R.id.create);
+        final Button cluster = (Button) findViewById(R.id.cluster);
+
+        initCrawl(numMarkers);
+        initMarkers();
+        cluster.setText("unCluster");
+        createClusterMarkers();
+        mIsClustered = true;
+        redrawMap();
+
+        // set listeners
+        create.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                initCrawl(numMarkers);
+                initMarkers();
+                cluster.setText("Cluster");
+                mIsClustered = false;
+                redrawMap();
+            }
+        });
+
+        cluster.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (mIsClustered) {
+                    cluster.setText("Cluster");
+                    mIsClustered = false;
+                    redrawMap();
+                } else {
+                    cluster.setText("Uncluster");
+                    createClusterMarkers();
+                    mIsClustered = true;
+                    redrawMap();
                 }
+            }
+        });
+    }
+
+    private void setupMap() {
+        if (mMapNeedsSetup) {
+            if (getGoogleMap() != null) {
+                mCurrentZoom = getGoogleMap().getCameraPosition().zoom;
+                getGoogleMap().setOnCameraChangeListener(
+                        new GoogleMap.OnCameraChangeListener() {
+                            @Override
+                            public void onCameraChange(
+                                    CameraPosition newPosition) {
+                                // is clustered?
+                                if (mIsClustered
+                                        && mCurrentZoom != newPosition.zoom) {
+                                    // create cluster markers for new position
+                                    recreateClusterMarkers();
+                                    // redraw map
+                                    redrawMap();
+                                }
+                                mCurrentZoom = newPosition.zoom;
+                            }
+                        });
+            }
+            mMapNeedsSetup = false;
+        }
+    }
+
+    public void initCrawl(final int numMarkers) {
+        ImageDirProcess dirProcess = null;
+        Thread t1 = new Thread(new Runnable() {
+            public void run() {
+                infoList = MediaReadTest.getCameraImageMetadata(getApplicationContext(), numMarkers);
             }
         });
         t1.start();
@@ -68,32 +154,117 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
-
-        drawMap();
     }
 
-    public void drawPoint(ImageInfo info) {// Add a marker in Sydney and move the camera
-        if (info == null) {
-            Log.e("drawPoint:", "info is null!");
-            return;
-        }
-        LatLng sydney = new LatLng(info.lat, info.lon);
-        mMap.addMarker(new MarkerOptions().position(sydney).title(info.dateStr)
-                .snippet(info.addrStr));
-     }
+    private void initMarkers() {
+        // clear map
+        getGoogleMap().clear();
+        // clear marker lists
+        mMarkers.clear();
+        mClusterMarkers.clear();
 
-    public void drawMap() {
+        // get projection area
+        Projection projection = getGoogleMap().getProjection();
+
+        // create random markers
+        int i = 0;
         for (ImageInfo info : infoList) {
-            Log.v("drawmap", "Drawing one point");
-            drawPoint(info);
+            LatLng markerPos = new LatLng(info.lat, info.lon);
+            MarkerOptions markerOptions = new MarkerOptions().position(markerPos).visible(true);
+            markerOptions.icon(info.bmd);
+            markerOptions.title(info.dateStr);
+            markerOptions.snippet(info.addrStr);
+            //markerOptions.rotation(i);
+            // create marker
+            Marker marker = getGoogleMap().addMarker(markerOptions);
+            // add to list
+            mMarkers.add(marker);
+            i++;
         }
+        ImageInfo info = infoList.get(0);
+        getGoogleMap().moveCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(info.lat, info.lon), 13));
 
-        int index = infoList.size() / 2;
-        if (infoList.get(index) == null) {
-            Log.v("drawmap", "midpoint is empty!");
-            return;
+
+    }
+
+    private void createClusterMarkers() {
+
+        if (mClusterMarkers.size() == 0) {
+            // set cluster parameters
+            int gridSize = 100;
+            boolean averageCenter = false;
+            // create clusters
+            Marker[] markers = mMarkers.toArray(new Marker[mMarkers.size()]);
+            ArrayList<MarkerCluster> markerClusters = new MarkerClusterer(
+                    getGoogleMap(), markers, gridSize, averageCenter)
+                    .createMarkerClusters();
+            // create cluster markers
+            for (MarkerCluster cluster : markerClusters) {
+                int markerCount = cluster.markers.size();
+                if (markerCount == 1) {
+                    mClusterMarkers.add(cluster.markers.get(0));
+                } else {
+                    // get marker view and set text
+                    View markerView = getLayoutInflater().inflate(
+                            R.layout.cluster_marker_view, null);
+                    ((TextView) markerView.findViewById(R.id.marker_count))
+                            .setText(String.valueOf(markerCount));
+
+                    // create cluster marker
+                    MarkerOptions markerOptions = new MarkerOptions();
+                    markerOptions.position(cluster.center).visible(false);
+                    markerOptions.title(cluster.markers.get(0).getTitle());
+                    markerOptions.snippet(cluster.markers.get(0).getSnippet());
+                    ImageInfo info = infoList.get((int) cluster.markers.get(0).getRotation());
+                    markerOptions.icon(info.bmd);
+
+                    Marker clusterMarker = getGoogleMap().addMarker(
+                            markerOptions);
+                    // add to list
+                    mClusterMarkers.add(clusterMarker);
+                }
+            }
         }
-        LatLng center = new LatLng(infoList.get(index).lat, infoList.get(index).lon);
-        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(center, 13));
+    }
+
+    private void recreateClusterMarkers() {
+        // remove cluster markers from map
+        for (Marker marker : mClusterMarkers) {
+            marker.remove();
+        }
+        // clear cluster markers list
+        mClusterMarkers.clear();
+        // create mew cluster markers
+        createClusterMarkers();
+    }
+
+    private void redrawMap() {
+
+        // hide all markers
+        for (Marker marker : mMarkers) {
+            marker.setVisible(false);
+        }
+        for (Marker marker : mClusterMarkers) {
+            marker.setVisible(false);
+        }
+        // show markers
+        if (mIsClustered) {
+            for (Marker marker : mClusterMarkers) {
+                marker.setVisible(true);
+            }
+        } else {
+            for (Marker marker : mMarkers) {
+                marker.setVisible(true);
+            }
+        }
+    }
+
+    private GoogleMap getGoogleMap() {
+        if (mMap == null) {
+            SupportMapFragment mapFragment = ((SupportMapFragment) getSupportFragmentManager()
+                    .findFragmentById(R.id.map));
+            mMap = mapFragment.getMap();
+        }
+        return mMap;
     }
 }
