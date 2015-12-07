@@ -38,27 +38,26 @@ public class MapsActivity extends FragmentActivity {
     private GoogleMap mMap;
     String dcim = Environment.getExternalStoragePublicDirectory(
             Environment.DIRECTORY_DCIM).getAbsolutePath();
-    ArrayList<ImageInfo> infoList = null;
+    ArrayList<ImageInfo> infoList = new ArrayList<>();
 
     float mCurrentZoom;
     ArrayList<Marker> mMarkers;
     ArrayList<Marker> mClusterMarkers;
     boolean mIsClustered = false;
     boolean mMapNeedsSetup = true;
-    int numMarkers = 200 ;
+    int numMarkers = 0 ;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
 
-        // initialize ui
-        initializeUI();
-
         // initialize marker list
         mMarkers = new ArrayList<Marker>();
         mClusterMarkers = new ArrayList<Marker>();
 
+        // initialize ui
+        initializeUI();
     }
 
     @Override
@@ -77,7 +76,6 @@ public class MapsActivity extends FragmentActivity {
 
     private void initializeUI() {
         // get ui items
-        Button create = (Button) findViewById(R.id.create);
         final Button cluster = (Button) findViewById(R.id.cluster);
 
         initCrawl(numMarkers);
@@ -88,20 +86,10 @@ public class MapsActivity extends FragmentActivity {
         redrawMap();
 
         // set listeners
-        create.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                initCrawl(numMarkers);
-                initMarkers();
-                cluster.setText("Cluster");
-                mIsClustered = false;
-                redrawMap();
-            }
-        });
-
         cluster.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                Log.d(v.toString(), "onClick");
                 if (mIsClustered) {
                     cluster.setText("Cluster");
                     mIsClustered = false;
@@ -143,9 +131,10 @@ public class MapsActivity extends FragmentActivity {
 
     public void initCrawl(final int numMarkers) {
         ImageDirProcess dirProcess = null;
+        final MediaReadTest mediaReadTest = new MediaReadTest(getApplicationContext());
         Thread t1 = new Thread(new Runnable() {
             public void run() {
-                infoList = MediaReadTest.getCameraImageMetadata(getApplicationContext(), numMarkers);
+                infoList = mediaReadTest.getCameraImageMetadata(getApplicationContext(), numMarkers);
             }
         });
         t1.start();
@@ -172,10 +161,8 @@ public class MapsActivity extends FragmentActivity {
             LatLng markerPos = new LatLng(info.lat, info.lon);
             MarkerOptions markerOptions = new MarkerOptions().position(markerPos).visible(true);
             markerOptions.icon(info.bmd);
-            markerOptions.title(info.dateStr);
+            markerOptions.title(i + " " + info.date.toString());
             markerOptions.snippet(info.addrStr);
-            //markerOptions.rotation(i);
-            // create marker
             Marker marker = getGoogleMap().addMarker(markerOptions);
             // add to list
             mMarkers.add(marker);
@@ -183,8 +170,6 @@ public class MapsActivity extends FragmentActivity {
         }
         ImageInfo info = infoList.get(0);
         getGoogleMap().moveCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(info.lat, info.lon), 13));
-
-
     }
 
     private void createClusterMarkers() {
@@ -192,7 +177,7 @@ public class MapsActivity extends FragmentActivity {
         if (mClusterMarkers.size() == 0) {
             // set cluster parameters
             int gridSize = 100;
-            boolean averageCenter = false;
+            boolean averageCenter = true;
             // create clusters
             Marker[] markers = mMarkers.toArray(new Marker[mMarkers.size()]);
             ArrayList<MarkerCluster> markerClusters = new MarkerClusterer(
@@ -215,8 +200,9 @@ public class MapsActivity extends FragmentActivity {
                     markerOptions.position(cluster.center).visible(false);
                     markerOptions.title(cluster.markers.get(0).getTitle());
                     markerOptions.snippet(cluster.markers.get(0).getSnippet());
-                    ImageInfo info = infoList.get((int) cluster.markers.get(0).getRotation());
-                    markerOptions.icon(info.bmd);
+                    String[] tokens = cluster.markers.get(0).getTitle().split(" ");
+                    ImageInfo info = infoList.get(Integer.parseInt(tokens[0]));
+                    //markerOptions.icon(info.bmd);
 
                     Marker clusterMarker = getGoogleMap().addMarker(
                             markerOptions);

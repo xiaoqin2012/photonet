@@ -6,6 +6,7 @@ import android.database.Cursor;
 import android.os.Environment;
 import android.provider.MediaStore;
 import android.support.annotation.NonNull;
+import android.util.Log;
 
 import java.io.File;
 import java.io.IOException;
@@ -21,32 +22,36 @@ import java.util.ListIterator;
  * Created by xiaoqin on 11/14/2015.
  */
 public class MediaReadTest {
-    public static final String CAMERA_IMAGE_BUCKET_NAME =
+    public final static String CAMERA_IMAGE_BUCKET_NAME =
             Environment.getExternalStorageDirectory().toString()
                     + "/DCIM/Camera";
-    public static final String CAMERA_IMAGE_BUCKET_ID =
+    public final static String CAMERA_IMAGE_BUCKET_ID =
             getBucketId(CAMERA_IMAGE_BUCKET_NAME);
 
-    public static ArrayList<String> result = null;
+    public ArrayList<String> cameraImagList;
+    public String infoFileName ;
+    public File infoFile;
+    public Context context;
+    public ImageInfoList imageInfoList;
+    public int numImage;
+    public boolean refresh;
 
-    public final String infoFileName = Environment.getDataDirectory().getAbsolutePath() +
-            "image_info_list.txt";
-    public File infoFile = new File(infoFileName);
+    MediaReadTest(Context applicationContext){
+        cameraImagList = new ArrayList<>();
+        context = applicationContext;
 
-    public static Context context = null;
+        infoFileName = "image_info_list.txt";
+        infoFile = new File(context.getFilesDir()+infoFileName);
+        imageInfoList = new ImageInfoList();
+        numImage = 0;
+        refresh = false;
+    }
 
-    public static ImageInfoList imageInfoList = new ImageInfoList();
-    public static int numImage = 0;
-    /**
-     * Matches code in MediaProvider.computeBucketValues. Should be a common
-     * function.
-     */
     public static String getBucketId(String path) {
         return String.valueOf(path.toLowerCase().hashCode());
     }
 
-    public static List<String> getCameraImages() {
-        final String[] projection = { MediaStore.Images.Media.DATA };
+    public void getCameraImages() {
         String[] columns = new String[] {
                 MediaStore.Images.ImageColumns._ID,
                 MediaStore.Images.ImageColumns.TITLE,
@@ -54,7 +59,6 @@ public class MediaReadTest {
                 MediaStore.Images.ImageColumns.MIME_TYPE,
                 MediaStore.Images.ImageColumns.SIZE };
         final String selection = MediaStore.Images.Media.MIME_TYPE;
-        final String[] selectionArgs = { "image/*" };
         ContentResolver cr = context.getContentResolver();
         Cursor cursor = context.getContentResolver().query(
                 MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
@@ -62,29 +66,29 @@ public class MediaReadTest {
                 null,
                 null,
                 null);
-        result = new ArrayList<String>(cursor.getCount());
+        if (cursor == null || cursor.getCount() == 0)
+            return;
+        cameraImagList = new ArrayList<String>(cursor.getCount());
         if (cursor.moveToFirst()) {
             final int dataColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA);
             do {
                 final String data = cursor.getString(dataColumn);
-                result.add(data);
+                cameraImagList.add(data);
             } while (cursor.moveToNext());
         }
         cursor.close();
-        return result;
     }
 
-    public static Date date = new Date(0);
-
-    public static void scanImageInfoList() throws IOException, InterruptedException {
-        for (String file_name : result) {
+    public void scanImageInfoList() throws IOException, InterruptedException {
+        for (String file_name : cameraImagList) {
             File file = new File(file_name);
-            ImageProcess imageP = null;
+            ImageProcess imageP;
             Date date_t = new Date(file.lastModified());
-            if (date_t.compareTo(date) > 0) {
+            if (date_t.compareTo(imageInfoList.recentTime) > 0) {
                 imageP = new ImageProcess(file.getAbsolutePath(), context);
                 if (imageP.isLegal()) {
                     ImageInfo imageInfo = imageP.getImageInfo();
+                    Log.d("imageInfo: " + imageP.toString(), " " + imageInfo);
                     imageInfoList.add_one_image_info(imageInfo);
                     if (numImage != 0 && imageInfoList.infoList.size() >= numImage) {
                         break;
@@ -92,17 +96,46 @@ public class MediaReadTest {
                 }
             }
         }
-
-
     }
 
-    public static ArrayList<ImageInfo>  getCameraImageMetadata(Context context_t, int num) {
+    public ArrayList<ImageInfo>  getCameraImageMetadata(Context context_t, int num) {
         numImage = num;
         context = context_t;
         String filename = "image_info_list.txt";
+        Date date;
 
-        File infoFile = new File(context.getFilesDir()+filename);
         ArrayList<Thread> threads = imageInfoList.start_processing();
+        if (!refresh) {
+            readInfoFile();
+        }
+
+        try {
+            date = new Date();
+            getCameraImages();
+            scanImageInfoList();
+            imageInfoList.set_image_info_end_marker();
+            imageInfoList.recentTime = date;
+        } catch (IOException e) {
+                e.printStackTrace();
+        } catch (InterruptedException e) {
+                e.printStackTrace();
+        }
+
+        try {
+            for (Thread t : threads) {
+                t.join();
+            }
+            ImageDirProcess.writeImageInfoList(imageInfoList, infoFile);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return imageInfoList.infoList;
+    }
+
+    void readInfoFile() {
         if (infoFile.exists()) {
             ImageDirProcess.readImageInfoList(infoFile, imageInfoList);
         } else {
@@ -112,28 +145,5 @@ public class MediaReadTest {
                 e.printStackTrace();
             }
         }
-
-        try {
-            getCameraImages();
-            scanImageInfoList();
-        } catch (IOException e) {
-                e.printStackTrace();
-        } catch (InterruptedException e) {
-                e.printStackTrace();
-        }
-
-        imageInfoList.set_image_info_end_marker();
-
-        try {
-            for (Thread t : threads) {
-                t.join();
-            }
-            ImageDirProcess.writeImageInfoList(imageInfoList.infoList, infoFile);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return imageInfoList.infoList;
     }
 }

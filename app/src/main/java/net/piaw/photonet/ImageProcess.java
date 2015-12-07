@@ -26,7 +26,8 @@ public class ImageProcess {
     File file;
     Metadata metadata;
     String fileName;
-    String dateStr;
+    //String dateStr;
+    Date date;
     GeoLocation gps;
     //file.absolutePath()
     Address addr;
@@ -74,16 +75,15 @@ public class ImageProcess {
             return;
         }
 
-        Date date = directory.getDate(ExifSubIFDDirectory.TAG_DATETIME_ORIGINAL);
+        date = directory.getDate(ExifSubIFDDirectory.TAG_DATETIME_ORIGINAL);
+        Log.d("date: ", " " + date);
         if (date == null) {
-            dateStr = " ";
-        } else {
-            dateStr = date.toString();
+            date = new Date();
         }
     }
 
     public void setGPSInfo() throws IOException {
-        GpsDirectory gpsDirectory = (GpsDirectory) metadata.getFirstDirectoryOfType(GpsDirectory.class);
+        GpsDirectory gpsDirectory = metadata.getFirstDirectoryOfType(GpsDirectory.class);
         if (gpsDirectory == null) {
             legal = false;
             return;
@@ -91,16 +91,33 @@ public class ImageProcess {
         gps = gpsDirectory.getGeoLocation();
         if (gps == null) {
             Log.e("setGPSInfo", "GPS is null!");
+            legal = false;
             return;
         }
+
         setAddr();
     }
 
     public void setAddr() throws IOException {
         Geocoder geocoder = new Geocoder(context);
-        addr = geocoder.getFromLocation(gps.getLatitude(),gps.getLongitude(), 1).get(0);
-        addrStr = addr.getAddressLine(0) + " " + addr.getAddressLine(1) +
-                " " + addr.getAddressLine(2);
+        List<Address> test = geocoder.getFromLocation(gps.getLatitude(), gps.getLongitude(), 1);
+        Log.d("setAddr:" + gps.getLatitude(), test.toString() );
+        List<Address> addresses =  geocoder.getFromLocation(gps.getLatitude(),gps.getLongitude(), 1);
+        if (addresses == null || addresses.size() == 0) {
+            addrStr = "null";
+            return;
+        }
+
+        addr = addresses.get(0);
+        if (addr == null) {
+            addrStr = "null";
+            return;
+        }
+        addrStr = addr.getAddressLine(0);
+        if (addr.getAddressLine(1)!= null)
+            addrStr = addrStr + " " + addr.getAddressLine(1);
+        if (addr.getAddressLine(2)!= null)
+            addrStr = addrStr + " " + addr.getAddressLine(2);
     }
 
     private void printImageTags()
@@ -121,13 +138,13 @@ public class ImageProcess {
             Log.e("getImageInfo", "GPS is null!");
             return null;
         }
-        ImageInfo test = new ImageInfo(dateStr, gps.getLatitude(),gps.getLongitude(),
+
+        return new ImageInfo(date, gps.getLatitude(),gps.getLongitude(),
                 addrStr, file.getAbsolutePath());
-        return test;
-    }
+     }
 
     public String getDateStr() {
-        return dateStr;
+        return date.toString();
     }
 
     public boolean isLegal() { return legal; }
