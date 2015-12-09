@@ -7,6 +7,7 @@ import android.graphics.Color;
 
 import com.google.android.gms.maps.model.BitmapDescriptor;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
+import com.google.android.gms.maps.model.Marker;
 
 import java.util.Date;
 
@@ -20,6 +21,7 @@ public class ImageInfo {
     String addrStr;
     String fileName;
     BitmapDescriptor bmd;
+    Marker marker;
 
     public ImageInfo(Date date_val, double latitude, double longitude, String s1, String file_name) {
         date = date_val;

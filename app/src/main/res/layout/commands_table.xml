@@ -5,14 +5,40 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:padding="10dp" >
+        android:padding="10dp"
+        android:weightSum="1">
 
         <Button
             android:id="@+id/cluster"
             android:layout_marginLeft="10dp"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Cluster" />
+            android:text="cluster" />
+
+        <Button
+            android:id="@+id/query"
+            android:layout_alignLeft="@+id/cluster"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:onClick="query"
+            android:text="query" />
+
+        <Button
+            android:id="@+id/startDate"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="start date"
+            android:onClick="startDate"
+            android:layout_alignLeft="@+id/query" />
+
+        <Button
+            android:id="@+id/endDate"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="end date"
+            android:onClick="endDate"
+            android:layout_alignLeft="@+id/startDate" />
+
     </LinearLayout>
 
 </merge>

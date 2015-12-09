@@ -16,6 +16,10 @@ public class QueryFilter {
     QueryFilter() {
         dateBool = false;
         placeBool = false;
+        dateStart = new Date(0);
+        dateEnd = new Date();
+        cityName = null;
+        countryName = null;
     }
 
     QueryFilter(Date date_start_val, Date date_end_val) {
@@ -43,15 +47,21 @@ public class QueryFilter {
         placeBool = true;
     }
 
+    void clear() {
+        dateBool = false;
+        placeBool = false;
+    }
+
     boolean queryMatch(Date date_val, String addr) {
         boolean match_date = true;
+        boolean match_place = true;
+
         if (dateBool &&
                 (date_val.getTime() < dateStart.getTime()
                         || date_val.getTime() > dateEnd.getTime())) {
             match_date = false;
         }
 
-        boolean match_place = true;
         if (placeBool && (!addr.contains(cityName) ||
             !addr.contains(countryName))) {
             match_place = false;

@@ -2,6 +2,7 @@ package net.piaw.photonet;
 
 import android.util.Log;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Date;
@@ -49,11 +50,16 @@ public class ImageInfoList {
         }
         ImageInfo info = infoList.get(index);
         index++;
-        Log.d(this.toString(), "index: " + index);
         return info;
     }
 
     public void add_one_image_info(ImageInfo info) {
+        File file = new File(info.fileName);
+        if (!file.exists()) {
+            infoHash.remove(info.fileName);
+            return;
+        }
+
         if (infoHash.contains(info.fileName))
             return;
         infoHash.add(info.fileName);

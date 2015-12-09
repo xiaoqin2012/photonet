@@ -29,7 +29,7 @@ import android.view.ViewDebug;
 public class ImageDirProcess {
 
 
-    public static void readImageInfoList(File infoFileName, ImageInfoList info_list) {
+    public static void readImageInfoList(File infoFileName, ImageInfoList info_list, int num) {
 
         try {
             // FileReader reads text files in the default encoding.
@@ -56,6 +56,8 @@ public class ImageDirProcess {
                         Double.parseDouble(tokens[2]), tokens[3], tokens[4]);
                 Log.d("info: " + line,  " " + info.toString());
                 info_list.add_one_image_info(info);
+                if ((num != 0) && (info_list.infoList.size() == num))
+                    break;
             }
 
             Log.d("read infofile till index: ", " " +info_list.infoList.size());
@@ -78,19 +80,18 @@ public class ImageDirProcess {
             throws IOException {
         ArrayList<ImageInfo> infoList = imageInfoList.infoList;
         Collections.sort(infoList, new ImageInfoComparator());
-        FileWriter fw = new FileWriter(infoFile.getAbsoluteFile());
-        BufferedWriter bw = new BufferedWriter(fw);
+        FileWriter fw = new FileWriter(infoFile.getAbsoluteFile(), false);
 
         String content = imageInfoList.recentTime.toString() + "\n";
-        bw.write(content);
+        fw.write(content);
 
         for (ImageInfo info : infoList) {
             content = info.date.toString() + ";" + info.lat + ";" + info.lon + ";" +
                     info.addrStr + ";" + info.fileName + "\n";
-            bw.write(content);
+            fw.write(content);
         }
 
-        bw.flush();
-        bw.close();
+        fw.flush();
+        fw.close();
     }
 }

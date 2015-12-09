@@ -1,5 +1,6 @@
 package net.piaw.photonet;
 
+import android.app.DialogFragment;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.graphics.Bitmap;
@@ -11,6 +12,7 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.TextView;
 
 import com.google.android.gms.common.ConnectionResult;
@@ -38,14 +40,18 @@ public class MapsActivity extends FragmentActivity {
     private GoogleMap mMap;
     String dcim = Environment.getExternalStoragePublicDirectory(
             Environment.DIRECTORY_DCIM).getAbsolutePath();
-    ArrayList<ImageInfo> infoList = new ArrayList<>();
 
     float mCurrentZoom;
     ArrayList<Marker> mMarkers;
     ArrayList<Marker> mClusterMarkers;
     boolean mIsClustered = false;
     boolean mMapNeedsSetup = true;
-    int numMarkers = 0 ;
+    int numMarkers = 10 ;
+    MediaReadTest mediaReadTest;
+
+    QueryFilter filter = new QueryFilter();
+    DatePickerFragment startDateF;
+    DatePickerFragment endDateF;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -55,6 +61,7 @@ public class MapsActivity extends FragmentActivity {
         // initialize marker list
         mMarkers = new ArrayList<Marker>();
         mClusterMarkers = new ArrayList<Marker>();
+        mediaReadTest = new MediaReadTest(getApplication().getApplicationContext());
 
         // initialize ui
         initializeUI();
@@ -84,6 +91,8 @@ public class MapsActivity extends FragmentActivity {
         createClusterMarkers();
         mIsClustered = true;
         redrawMap();
+        startDateF = new DatePickerFragment();
+        endDateF = new DatePickerFragment();
 
         // set listeners
         cluster.setOnClickListener(new View.OnClickListener() {
@@ -93,13 +102,43 @@ public class MapsActivity extends FragmentActivity {
                 if (mIsClustered) {
                     cluster.setText("Cluster");
                     mIsClustered = false;
+                    filter.clear();
                     redrawMap();
                 } else {
                     cluster.setText("Uncluster");
                     createClusterMarkers();
                     mIsClustered = true;
+                    filter.clear();
                     redrawMap();
                 }
+            }
+        });
+
+        final Button query = (Button) findViewById(R.id.query);
+        query.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                filter.clear();
+                filter.setDate(startDateF.date, endDateF.date);
+                mIsClustered = false;
+                redrawMap();
+            }
+        });
+
+
+        final Button startDate = (Button) findViewById(R.id.startDate);
+        startDate.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startDateF.show(getFragmentManager(), "datePicker");
+            }
+        });
+
+        final Button endDate = (Button) findViewById(R.id.endDate);
+        endDate.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                endDateF.show(getFragmentManager(), "datePicker");
             }
         });
     }
@@ -131,10 +170,9 @@ public class MapsActivity extends FragmentActivity {
 
     public void initCrawl(final int numMarkers) {
         ImageDirProcess dirProcess = null;
-        final MediaReadTest mediaReadTest = new MediaReadTest(getApplicationContext());
         Thread t1 = new Thread(new Runnable() {
             public void run() {
-                infoList = mediaReadTest.getCameraImageMetadata(getApplicationContext(), numMarkers);
+                mediaReadTest.getCameraImageMetadata(getApplicationContext(), numMarkers);
             }
         });
         t1.start();
@@ -156,20 +194,23 @@ public class MapsActivity extends FragmentActivity {
         Projection projection = getGoogleMap().getProjection();
 
         // create random markers
-        int i = 0;
-        for (ImageInfo info : infoList) {
-            LatLng markerPos = new LatLng(info.lat, info.lon);
-            MarkerOptions markerOptions = new MarkerOptions().position(markerPos).visible(true);
-            markerOptions.icon(info.bmd);
-            markerOptions.title(i + " " + info.date.toString());
-            markerOptions.snippet(info.addrStr);
-            Marker marker = getGoogleMap().addMarker(markerOptions);
-            // add to list
-            mMarkers.add(marker);
+        int i=0;
+        for (ImageInfo info : mediaReadTest.imageInfoList.infoList) {
+            if (info.marker == null) {
+                LatLng markerPos = new LatLng(info.lat, info.lon);
+                MarkerOptions markerOptions = new MarkerOptions().position(markerPos).visible(true);
+                markerOptions.icon(info.bmd);
+                markerOptions.title(i + " " + info.date.toString());
+                markerOptions.snippet(info.addrStr);
+                Marker marker = getGoogleMap().addMarker(markerOptions);
+                info.marker = marker;
+                // add to list
+                mMarkers.add(marker);
+            }
             i++;
         }
-        ImageInfo info = infoList.get(0);
-        getGoogleMap().moveCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(info.lat, info.lon), 13));
+        ImageInfo info = mediaReadTest.imageInfoList.infoList.get(0);
+        getGoogleMap().moveCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(info.lat, info.lon), 12));
     }
 
     private void createClusterMarkers() {
@@ -201,8 +242,8 @@ public class MapsActivity extends FragmentActivity {
                     markerOptions.title(cluster.markers.get(0).getTitle());
                     markerOptions.snippet(cluster.markers.get(0).getSnippet());
                     String[] tokens = cluster.markers.get(0).getTitle().split(" ");
-                    ImageInfo info = infoList.get(Integer.parseInt(tokens[0]));
-                    //markerOptions.icon(info.bmd);
+                    ImageInfo info = mediaReadTest.imageInfoList.infoList.get(Integer.parseInt(tokens[0]));
+                    markerOptions.icon(info.bmd);
 
                     Marker clusterMarker = getGoogleMap().addMarker(
                             markerOptions);
@@ -239,8 +280,9 @@ public class MapsActivity extends FragmentActivity {
                 marker.setVisible(true);
             }
         } else {
-            for (Marker marker : mMarkers) {
-                marker.setVisible(true);
+            for (ImageInfo info: mediaReadTest.imageInfoList.infoList) {
+                if(filter.queryMatch(info.date, info.addrStr))
+                    info.marker.setVisible(true);
             }
         }
     }

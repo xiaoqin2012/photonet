@@ -98,7 +98,7 @@ public class MediaReadTest {
         }
     }
 
-    public ArrayList<ImageInfo>  getCameraImageMetadata(Context context_t, int num) {
+    public void getCameraImageMetadata(Context context_t, int num) {
         numImage = num;
         context = context_t;
         String filename = "image_info_list.txt";
@@ -107,19 +107,23 @@ public class MediaReadTest {
         ArrayList<Thread> threads = imageInfoList.start_processing();
         if (!refresh) {
             readInfoFile();
+            refresh = true;
         }
 
-        try {
-            date = new Date();
-            getCameraImages();
-            scanImageInfoList();
-            imageInfoList.set_image_info_end_marker();
-            imageInfoList.recentTime = date;
-        } catch (IOException e) {
+        date = new Date();
+        if (numImage == 0 || imageInfoList.infoList.size() < numImage) {
+            try {
+                getCameraImages();
+                scanImageInfoList();
+              } catch (IOException e) {
                 e.printStackTrace();
-        } catch (InterruptedException e) {
+            } catch (InterruptedException e) {
                 e.printStackTrace();
+            }
         }
+
+        imageInfoList.set_image_info_end_marker();
+        imageInfoList.recentTime = date;
 
         try {
             for (Thread t : threads) {
@@ -131,13 +135,11 @@ public class MediaReadTest {
         } catch (IOException e) {
             e.printStackTrace();
         }
-
-        return imageInfoList.infoList;
     }
 
     void readInfoFile() {
         if (infoFile.exists()) {
-            ImageDirProcess.readImageInfoList(infoFile, imageInfoList);
+            ImageDirProcess.readImageInfoList(infoFile, imageInfoList, numImage);
         } else {
             try {
                 infoFile.createNewFile();
