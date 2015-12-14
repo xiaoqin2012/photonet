@@ -22,6 +22,8 @@ public class ImageInfo {
     String fileName;
     BitmapDescriptor bmd;
     Marker marker;
+    //static BitmapFactory.Options[] option = null;
+    int numThreads;
 
     public ImageInfo(Date date_val, double latitude, double longitude, String s1, String file_name) {
         date = date_val;
@@ -31,10 +33,10 @@ public class ImageInfo {
         fileName = file_name;
     }
 
-    public void generatedBitmap() {
-        Bitmap bm = BitmapFactory.decodeFile(fileName);
+    public void generatedBitmap(BitmapFactory.Options option) {
+        Bitmap bm = BitmapFactory.decodeFile(fileName, option);
         bmd = BitmapDescriptorFactory.fromBitmap(
-                Bitmap.createScaledBitmap(addWhiteBorder(bm, 200), 80, 80, false));
+                Bitmap.createScaledBitmap(addWhiteBorder(bm, 20), 80, 80, false));
     }
 
     public Bitmap addWhiteBorder(Bitmap bmp, int borderSize) {

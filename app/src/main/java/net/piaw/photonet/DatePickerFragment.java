@@ -16,7 +16,7 @@ import java.util.Date;
  */
 public class DatePickerFragment extends DialogFragment
         implements DatePickerDialog.OnDateSetListener {
-    Date date;
+    Date date = new Date();
     @Override
     public Dialog onCreateDialog(Bundle savedInstanceState) {
         // Use the current date as the default date in the picker
@@ -25,7 +25,6 @@ public class DatePickerFragment extends DialogFragment
         int month = c.get(Calendar.MONTH);
         int day = c.get(Calendar.DAY_OF_MONTH);
         date = new Date();
-
         // Create a new instance of DatePickerDialog and return it
         return new DatePickerDialog(getActivity(), this, year, month, day);
     }

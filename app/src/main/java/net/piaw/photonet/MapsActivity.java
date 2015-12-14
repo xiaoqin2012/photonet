@@ -33,6 +33,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.Enumeration;
 import java.util.List;
 
 public class MapsActivity extends FragmentActivity {
@@ -46,12 +47,13 @@ public class MapsActivity extends FragmentActivity {
     ArrayList<Marker> mClusterMarkers;
     boolean mIsClustered = false;
     boolean mMapNeedsSetup = true;
-    int numMarkers = 10 ;
+    int numMarkers = 0 ;
     MediaReadTest mediaReadTest;
 
     QueryFilter filter = new QueryFilter();
     DatePickerFragment startDateF;
     DatePickerFragment endDateF;
+    private Marker marker;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -87,9 +89,9 @@ public class MapsActivity extends FragmentActivity {
 
         initCrawl(numMarkers);
         initMarkers();
-        cluster.setText("unCluster");
+        cluster.setText("refresh");
         createClusterMarkers();
-        mIsClustered = true;
+        mIsClustered = false;
         redrawMap();
         startDateF = new DatePickerFragment();
         endDateF = new DatePickerFragment();
@@ -98,19 +100,13 @@ public class MapsActivity extends FragmentActivity {
         cluster.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Log.d(v.toString(), "onClick");
-                if (mIsClustered) {
-                    cluster.setText("Cluster");
-                    mIsClustered = false;
-                    filter.clear();
-                    redrawMap();
-                } else {
-                    cluster.setText("Uncluster");
-                    createClusterMarkers();
-                    mIsClustered = true;
-                    filter.clear();
-                    redrawMap();
-                }
+                filter.clear();
+                mIsClustered = true;
+                initCrawl(numMarkers);
+                cleanMarkers();
+                initMarkers();
+                recreateClusterMarkers();
+                redrawMap();
             }
         });
 
@@ -185,9 +181,8 @@ public class MapsActivity extends FragmentActivity {
 
     private void initMarkers() {
         // clear map
-        getGoogleMap().clear();
+        //getGoogleMap().clear();
         // clear marker lists
-        mMarkers.clear();
         mClusterMarkers.clear();
 
         // get projection area
@@ -195,12 +190,14 @@ public class MapsActivity extends FragmentActivity {
 
         // create random markers
         int i=0;
-        for (ImageInfo info : mediaReadTest.imageInfoList.infoList) {
+        Enumeration<ImageInfo> e = mediaReadTest.imageInfoList.hashInfoList.elements();
+        while (e.hasMoreElements()) {
+            ImageInfo info = e.nextElement();
             if (info.marker == null) {
                 LatLng markerPos = new LatLng(info.lat, info.lon);
                 MarkerOptions markerOptions = new MarkerOptions().position(markerPos).visible(true);
                 markerOptions.icon(info.bmd);
-                markerOptions.title(i + " " + info.date.toString());
+                markerOptions.title(info.date.toString());
                 markerOptions.snippet(info.addrStr);
                 Marker marker = getGoogleMap().addMarker(markerOptions);
                 info.marker = marker;
@@ -209,8 +206,14 @@ public class MapsActivity extends FragmentActivity {
             }
             i++;
         }
-        ImageInfo info = mediaReadTest.imageInfoList.infoList.get(0);
-        getGoogleMap().moveCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(info.lat, info.lon), 12));
+        e = mediaReadTest.imageInfoList.hashInfoList.elements();
+        if(e.hasMoreElements()) {
+            ImageInfo info = e.nextElement();
+            getGoogleMap().moveCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(info.lat, info.lon), 12));
+        } else {
+            Log.d("initMarkers:", "hashInfoList.size: " + mediaReadTest.imageInfoList.hashInfoList.size());
+            getGoogleMap().moveCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(375, 375), 12));
+        }
     }
 
     private void createClusterMarkers() {
@@ -237,28 +240,19 @@ public class MapsActivity extends FragmentActivity {
                             .setText(String.valueOf(markerCount));
 
                     // create cluster marker
-                    MarkerOptions markerOptions = new MarkerOptions();
-                    markerOptions.position(cluster.center).visible(false);
-                    markerOptions.title(cluster.markers.get(0).getTitle());
-                    markerOptions.snippet(cluster.markers.get(0).getSnippet());
-                    String[] tokens = cluster.markers.get(0).getTitle().split(" ");
-                    ImageInfo info = mediaReadTest.imageInfoList.infoList.get(Integer.parseInt(tokens[0]));
-                    markerOptions.icon(info.bmd);
+                    //MarkerOptions markerOptions = new MarkerOptions();
+                    //markerOptions.position(cluster.center).visible(false);
+                    //markerOptions.title(cluster.markers.get(0).getTitle());
+                    //markerOptions.snippet(cluster.markers.get(0).getSnippet());
+                    //String[] tokens = cluster.markers.get(0).getTitle().split(" ");
 
-                    Marker clusterMarker = getGoogleMap().addMarker(
-                            markerOptions);
-                    // add to list
-                    mClusterMarkers.add(clusterMarker);
+                    mClusterMarkers.add(cluster.markers.get(0));
                 }
             }
         }
     }
 
     private void recreateClusterMarkers() {
-        // remove cluster markers from map
-        for (Marker marker : mClusterMarkers) {
-            marker.remove();
-        }
         // clear cluster markers list
         mClusterMarkers.clear();
         // create mew cluster markers
@@ -280,9 +274,39 @@ public class MapsActivity extends FragmentActivity {
                 marker.setVisible(true);
             }
         } else {
-            for (ImageInfo info: mediaReadTest.imageInfoList.infoList) {
-                if(filter.queryMatch(info.date, info.addrStr))
+            Enumeration<ImageInfo> e = mediaReadTest.imageInfoList.hashInfoList.elements();
+            while (e.hasMoreElements()) {
+                ImageInfo info = e.nextElement();
+                if (info.date == null)
+                    continue;
+                if(filter.queryMatch(info.date, info.addrStr)) {
                     info.marker.setVisible(true);
+                }
+            }
+        }
+
+        Log.d("redrawMap", " addedInfo:" + mediaReadTest.imageInfoList.numAddedTo +
+                " countBitMap:" + mediaReadTest.imageInfoList.countBitmap);
+    }
+
+    private void cleanMarkers() {
+        Enumeration<ImageInfo> e = mediaReadTest.imageInfoList.hashInfoList.elements();
+        while (e.hasMoreElements()){
+            ImageInfo info = e.nextElement();
+            File file = new File(info.fileName);
+            if (!file.exists()){
+                info.marker.remove();
+                mMarkers.remove(info.marker);
+                Log.d("clearMarkers: file not exist: ", "remove a marker");
+                mediaReadTest.imageInfoList.hashInfoList.remove(info);
+            }
+        }
+
+        for(Marker marker:mMarkers) {
+            if(marker.getTitle() == "remove") {
+                marker.remove();
+                mMarkers.remove(marker);
+                Log.d("clearMarkers: modified file set remove ", "remove a marker");
             }
         }
     }

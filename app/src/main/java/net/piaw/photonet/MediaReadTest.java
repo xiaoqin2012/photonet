@@ -90,7 +90,7 @@ public class MediaReadTest {
                     ImageInfo imageInfo = imageP.getImageInfo();
                     Log.d("imageInfo: " + imageP.toString(), " " + imageInfo);
                     imageInfoList.add_one_image_info(imageInfo);
-                    if (numImage != 0 && imageInfoList.infoList.size() >= numImage) {
+                    if (numImage != 0 && imageInfoList.hashInfoList.size() >= numImage) {
                         break;
                     }
                 }
@@ -111,7 +111,7 @@ public class MediaReadTest {
         }
 
         date = new Date();
-        if (numImage == 0 || imageInfoList.infoList.size() < numImage) {
+        if (numImage == 0 || imageInfoList.hashInfoList.size() < numImage) {
             try {
                 getCameraImages();
                 scanImageInfoList();
@@ -130,11 +130,16 @@ public class MediaReadTest {
                 t.join();
             }
             ImageDirProcess.writeImageInfoList(imageInfoList, infoFile);
+            imageInfoList.imageDirProcessDone = false;
+
         } catch (InterruptedException e) {
             e.printStackTrace();
         } catch (IOException e) {
             e.printStackTrace();
         }
+
+        imageInfoList.infoList.clear();
+        imageInfoList.index = 0;
     }
 
     void readInfoFile() {

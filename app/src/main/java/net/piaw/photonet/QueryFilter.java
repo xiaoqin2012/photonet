@@ -1,5 +1,7 @@
 package net.piaw.photonet;
 
+import android.util.Log;
+
 import java.util.Date;
 
 /**
@@ -50,11 +52,19 @@ public class QueryFilter {
     void clear() {
         dateBool = false;
         placeBool = false;
+        setDate(new Date(0), new Date());
     }
 
     boolean queryMatch(Date date_val, String addr) {
         boolean match_date = true;
         boolean match_place = true;
+        if (dateStart == null) {
+            Log.d("queryMatch: dateStart == null", " ");
+        }
+
+        if (date_val == null) {
+            Log.d("queryMatch: date_val == null", " ");
+        }
 
         if (dateBool &&
                 (date_val.getTime() < dateStart.getTime()
@@ -67,9 +77,11 @@ public class QueryFilter {
             match_place = false;
         }
 
-        if (match_date && match_place)
+        if (match_date && match_place) {
             return true;
-
-        return false;
+        }
+        else {
+            return false;
+        }
     }
 }

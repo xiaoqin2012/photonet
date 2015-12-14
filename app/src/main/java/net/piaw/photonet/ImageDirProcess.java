@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.Enumeration;
 import java.util.List;
 import java.util.Locale;
 
@@ -50,14 +51,12 @@ public class ImageDirProcess {
 
             String[] tokens;
             ImageInfo info;
-            while ((line = bufferedReader.readLine()) != null) {
+            while (((num == 0) || (info_list.hashInfoList.size() < num)) && ((line = bufferedReader.readLine()) != null)) {
                 tokens = line.split(";");
                 info = new ImageInfo(format.parse(tokens[0]), Double.parseDouble(tokens[1]),
                         Double.parseDouble(tokens[2]), tokens[3], tokens[4]);
                 Log.d("info: " + line,  " " + info.toString());
                 info_list.add_one_image_info(info);
-                if ((num != 0) && (info_list.infoList.size() == num))
-                    break;
             }
 
             Log.d("read infofile till index: ", " " +info_list.infoList.size());
@@ -80,12 +79,15 @@ public class ImageDirProcess {
             throws IOException {
         ArrayList<ImageInfo> infoList = imageInfoList.infoList;
         Collections.sort(infoList, new ImageInfoComparator());
-        FileWriter fw = new FileWriter(infoFile.getAbsoluteFile(), false);
+        FileWriter fw = new FileWriter(infoFile.getAbsoluteFile());
 
         String content = imageInfoList.recentTime.toString() + "\n";
         fw.write(content);
 
-        for (ImageInfo info : infoList) {
+        Enumeration<ImageInfo> e = imageInfoList.hashInfoList.elements();
+
+        while(e.hasMoreElements()) {
+            ImageInfo info = e.nextElement();
             content = info.date.toString() + ";" + info.lat + ";" + info.lon + ";" +
                     info.addrStr + ";" + info.fileName + "\n";
             fw.write(content);
